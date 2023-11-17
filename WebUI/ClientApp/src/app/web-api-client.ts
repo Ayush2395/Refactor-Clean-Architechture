@@ -258,7 +258,7 @@ export class WeatherForecastClient implements IWeatherForecastClient {
     }
 
     get(): Observable<WeatherForecast[]> {
-        let url_ = this.baseUrl + "/WeatherForecast";
+        let url_ = this.baseUrl + "/api/WeatherForecast";
         url_ = url_.replace(/[?&]$/, "");
 
         let options_ : any = {
