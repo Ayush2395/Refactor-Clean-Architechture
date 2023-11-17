@@ -131,7 +131,7 @@
         ]
       }
     },
-    "/WeatherForecast": {
+    "/api/WeatherForecast": {
       "get": {
         "tags": [
           "WeatherForecast"
