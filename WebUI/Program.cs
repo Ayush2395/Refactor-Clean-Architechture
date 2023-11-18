@@ -13,7 +13,7 @@ builder.Services.AddWebUiLayer();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
+if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
     app.UseMigrationsEndPoint();
@@ -31,7 +31,7 @@ else
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 
-app.UseOpenApi();
+//app.UseOpenApi();
 app.UseSwaggerUi3(x =>
 {
     x.Path = "/api";
