@@ -1,21 +1,29 @@
-﻿using Application.Common.Models;
-using Application.TodoLists.Query;
-using Domain.Entities;
+﻿using Application.Common.Interfaces;
+using Application.Common.Models;
+using Application.TodoLists.Commond.CreateTodoList;
+using Application.TodoLists.Query.GetTodoList;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace WebUI.Controllers
 {
+    [Authorize]
     [Route("api/[controller]")]
     [ApiController]
     public class TodoListController : ApiBaseController
     {
-        [Authorize]
-        [HttpGet("GetTodoList")]
-        public async Task<ActionResult<PaginatedList<TodoList>>> GetTodoList([FromQuery] int pageNumber, [FromQuery] int pageSize)
+        [HttpGet]
+        [Route("GetTodoList")]
+        public async Task<ActionResult<PaginatedList<TodoListDto>>> GetTodoList([FromQuery] int pageNumber, [FromQuery] int pageSize)
         {
-            var userId = User.Claims.FirstOrDefault(x => x.Type == "sid")?.Value;
-            return Ok(await _mediator.Send(new GetTodoListQuery { PageNumber = pageNumber, PageSize = pageSize, UserId = userId }));
+            return Ok(await _mediator.Send(new GetTodoListQuery { PageNumber = pageNumber, PageSize = pageSize }));
+        }
+
+        [HttpPost]
+        [Route("CreateTodoList")]
+        public async Task<ActionResult<string>> CreateTodoList([FromBody] CreateTodoListCommand command)
+        {
+            return Ok(await _mediator.Send(command));
         }
     }
 }

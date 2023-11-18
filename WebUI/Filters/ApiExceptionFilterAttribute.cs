@@ -13,6 +13,9 @@ namespace WebUI.Filters
             _exceptionHandlers = new Dictionary<Type, Action<ExceptionContext>>
             {
                 { typeof(ValidationException), HandleValidationException },
+                { typeof(ForbiddenAccessException), HandleForbiddenAccessException },
+                { typeof(UnauthorizedAccessException), HandleUnauthorizedAccessException },
+                { typeof(NotFoundException), HandleNotFoundException },
             };
         }
 

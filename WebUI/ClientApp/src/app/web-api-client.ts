@@ -15,81 +15,9 @@ import { HttpClient, HttpHeaders, HttpResponse, HttpResponseBase } from '@angula
 
 export const API_BASE_URL = new InjectionToken<string>('API_BASE_URL');
 
-export interface IOidcConfigurationClient {
-    getClientRequestParameters(clientId: string): Observable<FileResponse>;
-}
-
-@Injectable({
-    providedIn: 'root'
-})
-export class OidcConfigurationClient implements IOidcConfigurationClient {
-    private http: HttpClient;
-    private baseUrl: string;
-    protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
-
-    constructor(@Inject(HttpClient) http: HttpClient, @Optional() @Inject(API_BASE_URL) baseUrl?: string) {
-        this.http = http;
-        this.baseUrl = baseUrl !== undefined && baseUrl !== null ? baseUrl : "";
-    }
-
-    getClientRequestParameters(clientId: string): Observable<FileResponse> {
-        let url_ = this.baseUrl + "/_configuration/{clientId}";
-        if (clientId === undefined || clientId === null)
-            throw new Error("The parameter 'clientId' must be defined.");
-        url_ = url_.replace("{clientId}", encodeURIComponent("" + clientId));
-        url_ = url_.replace(/[?&]$/, "");
-
-        let options_ : any = {
-            observe: "response",
-            responseType: "blob",
-            headers: new HttpHeaders({
-                "Accept": "application/octet-stream"
-            })
-        };
-
-        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processGetClientRequestParameters(response_);
-        })).pipe(_observableCatch((response_: any) => {
-            if (response_ instanceof HttpResponseBase) {
-                try {
-                    return this.processGetClientRequestParameters(response_ as any);
-                } catch (e) {
-                    return _observableThrow(e) as any as Observable<FileResponse>;
-                }
-            } else
-                return _observableThrow(response_) as any as Observable<FileResponse>;
-        }));
-    }
-
-    protected processGetClientRequestParameters(response: HttpResponseBase): Observable<FileResponse> {
-        const status = response.status;
-        const responseBlob =
-            response instanceof HttpResponse ? response.body :
-            (response as any).error instanceof Blob ? (response as any).error : undefined;
-
-        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
-        if (status === 200 || status === 206) {
-            const contentDisposition = response.headers ? response.headers.get("content-disposition") : undefined;
-            let fileNameMatch = contentDisposition ? /filename\*=(?:(\\?['"])(.*?)\1|(?:[^\s]+'.*?')?([^;\n]*))/g.exec(contentDisposition) : undefined;
-            let fileName = fileNameMatch && fileNameMatch.length > 1 ? fileNameMatch[3] || fileNameMatch[2] : undefined;
-            if (fileName) {
-                fileName = decodeURIComponent(fileName);
-            } else {
-                fileNameMatch = contentDisposition ? /filename="?([^"]*?)"?(;|$)/g.exec(contentDisposition) : undefined;
-                fileName = fileNameMatch && fileNameMatch.length > 1 ? fileNameMatch[1] : undefined;
-            }
-            return _observableOf({ fileName: fileName, data: responseBlob as any, status: status, headers: _headers });
-        } else if (status !== 200 && status !== 204) {
-            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
-            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
-            }));
-        }
-        return _observableOf(null as any);
-    }
-}
-
 export interface ITodoItemsClient {
     getTodoItems(pagenumber: number | undefined, pageSize: number | undefined, listId: string | undefined): Observable<PaginatedListOfTodoItem>;
+    createTodoItem(command: CreateTodoItemCommand): Observable<string>;
 }
 
 @Injectable({
@@ -164,10 +92,64 @@ export class TodoItemsClient implements ITodoItemsClient {
         }
         return _observableOf(null as any);
     }
+
+    createTodoItem(command: CreateTodoItemCommand): Observable<string> {
+        let url_ = this.baseUrl + "/api/TodoItems/CreateTodoItem";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(command);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processCreateTodoItem(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processCreateTodoItem(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<string>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<string>;
+        }));
+    }
+
+    protected processCreateTodoItem(response: HttpResponseBase): Observable<string> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            let resultData200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver);
+                result200 = resultData200 !== undefined ? resultData200 : <any>null;
+    
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
 }
 
 export interface ITodoListClient {
-    getTodoList(pageNumber: number | undefined, pageSize: number | undefined): Observable<PaginatedListOfTodoList>;
+    getTodoList(pageNumber: number | undefined, pageSize: number | undefined): Observable<PaginatedListOfTodoListDto>;
+    createTodoList(command: CreateTodoListCommand): Observable<string>;
 }
 
 @Injectable({
@@ -183,7 +165,7 @@ export class TodoListClient implements ITodoListClient {
         this.baseUrl = baseUrl !== undefined && baseUrl !== null ? baseUrl : "";
     }
 
-    getTodoList(pageNumber: number | undefined, pageSize: number | undefined): Observable<PaginatedListOfTodoList> {
+    getTodoList(pageNumber: number | undefined, pageSize: number | undefined): Observable<PaginatedListOfTodoListDto> {
         let url_ = this.baseUrl + "/api/TodoList/GetTodoList?";
         if (pageNumber === null)
             throw new Error("The parameter 'pageNumber' cannot be null.");
@@ -210,14 +192,14 @@ export class TodoListClient implements ITodoListClient {
                 try {
                     return this.processGetTodoList(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<PaginatedListOfTodoList>;
+                    return _observableThrow(e) as any as Observable<PaginatedListOfTodoListDto>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<PaginatedListOfTodoList>;
+                return _observableThrow(response_) as any as Observable<PaginatedListOfTodoListDto>;
         }));
     }
 
-    protected processGetTodoList(response: HttpResponseBase): Observable<PaginatedListOfTodoList> {
+    protected processGetTodoList(response: HttpResponseBase): Observable<PaginatedListOfTodoListDto> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -228,7 +210,60 @@ export class TodoListClient implements ITodoListClient {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result200: any = null;
             let resultData200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver);
-            result200 = PaginatedListOfTodoList.fromJS(resultData200);
+            result200 = PaginatedListOfTodoListDto.fromJS(resultData200);
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    createTodoList(command: CreateTodoListCommand): Observable<string> {
+        let url_ = this.baseUrl + "/api/TodoList/CreateTodoList";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(command);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processCreateTodoList(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processCreateTodoList(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<string>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<string>;
+        }));
+    }
+
+    protected processCreateTodoList(response: HttpResponseBase): Observable<string> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            let resultData200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver);
+                result200 = resultData200 !== undefined ? resultData200 : <any>null;
+    
             return _observableOf(result200);
             }));
         } else if (status !== 200 && status !== 204) {
@@ -732,15 +767,63 @@ export class DomainEvents implements IDomainEvents {
 export interface IDomainEvents {
 }
 
-export class PaginatedListOfTodoList implements IPaginatedListOfTodoList {
+export class CreateTodoItemCommand implements ICreateTodoItemCommand {
+    listId?: string | undefined;
+    title?: string | undefined;
+    notes?: string | undefined;
+    priority?: Priority;
+
+    constructor(data?: ICreateTodoItemCommand) {
+        if (data) {
+            for (var property in data) {
+                if (data.hasOwnProperty(property))
+                    (<any>this)[property] = (<any>data)[property];
+            }
+        }
+    }
+
+    init(_data?: any) {
+        if (_data) {
+            this.listId = _data["listId"];
+            this.title = _data["title"];
+            this.notes = _data["notes"];
+            this.priority = _data["priority"];
+        }
+    }
+
+    static fromJS(data: any): CreateTodoItemCommand {
+        data = typeof data === 'object' ? data : {};
+        let result = new CreateTodoItemCommand();
+        result.init(data);
+        return result;
+    }
+
+    toJSON(data?: any) {
+        data = typeof data === 'object' ? data : {};
+        data["listId"] = this.listId;
+        data["title"] = this.title;
+        data["notes"] = this.notes;
+        data["priority"] = this.priority;
+        return data;
+    }
+}
+
+export interface ICreateTodoItemCommand {
+    listId?: string | undefined;
+    title?: string | undefined;
+    notes?: string | undefined;
+    priority?: Priority;
+}
+
+export class PaginatedListOfTodoListDto implements IPaginatedListOfTodoListDto {
     pageNumber?: number;
     totalPages?: number;
     totalCount?: number;
     hasNextPage?: boolean;
     hasPreviousPage?: boolean;
-    items?: TodoList[];
+    items?: TodoListDto[];
 
-    constructor(data?: IPaginatedListOfTodoList) {
+    constructor(data?: IPaginatedListOfTodoListDto) {
         if (data) {
             for (var property in data) {
                 if (data.hasOwnProperty(property))
@@ -759,14 +842,14 @@ export class PaginatedListOfTodoList implements IPaginatedListOfTodoList {
             if (Array.isArray(_data["items"])) {
                 this.items = [] as any;
                 for (let item of _data["items"])
-                    this.items!.push(TodoList.fromJS(item));
+                    this.items!.push(TodoListDto.fromJS(item));
             }
         }
     }
 
-    static fromJS(data: any): PaginatedListOfTodoList {
+    static fromJS(data: any): PaginatedListOfTodoListDto {
         data = typeof data === 'object' ? data : {};
-        let result = new PaginatedListOfTodoList();
+        let result = new PaginatedListOfTodoListDto();
         result.init(data);
         return result;
     }
@@ -787,13 +870,153 @@ export class PaginatedListOfTodoList implements IPaginatedListOfTodoList {
     }
 }
 
-export interface IPaginatedListOfTodoList {
+export interface IPaginatedListOfTodoListDto {
     pageNumber?: number;
     totalPages?: number;
     totalCount?: number;
     hasNextPage?: boolean;
     hasPreviousPage?: boolean;
-    items?: TodoList[];
+    items?: TodoListDto[];
+}
+
+export class TodoListDto implements ITodoListDto {
+    id?: string | undefined;
+    title?: string | undefined;
+    colour?: string | undefined;
+    items?: TodoItemDto[];
+
+    constructor(data?: ITodoListDto) {
+        if (data) {
+            for (var property in data) {
+                if (data.hasOwnProperty(property))
+                    (<any>this)[property] = (<any>data)[property];
+            }
+        }
+    }
+
+    init(_data?: any) {
+        if (_data) {
+            this.id = _data["id"];
+            this.title = _data["title"];
+            this.colour = _data["colour"];
+            if (Array.isArray(_data["items"])) {
+                this.items = [] as any;
+                for (let item of _data["items"])
+                    this.items!.push(TodoItemDto.fromJS(item));
+            }
+        }
+    }
+
+    static fromJS(data: any): TodoListDto {
+        data = typeof data === 'object' ? data : {};
+        let result = new TodoListDto();
+        result.init(data);
+        return result;
+    }
+
+    toJSON(data?: any) {
+        data = typeof data === 'object' ? data : {};
+        data["id"] = this.id;
+        data["title"] = this.title;
+        data["colour"] = this.colour;
+        if (Array.isArray(this.items)) {
+            data["items"] = [];
+            for (let item of this.items)
+                data["items"].push(item.toJSON());
+        }
+        return data;
+    }
+}
+
+export interface ITodoListDto {
+    id?: string | undefined;
+    title?: string | undefined;
+    colour?: string | undefined;
+    items?: TodoItemDto[];
+}
+
+export class TodoItemDto implements ITodoItemDto {
+    itemId?: string;
+    title?: string;
+    notes?: string;
+    priority?: Priority;
+
+    constructor(data?: ITodoItemDto) {
+        if (data) {
+            for (var property in data) {
+                if (data.hasOwnProperty(property))
+                    (<any>this)[property] = (<any>data)[property];
+            }
+        }
+    }
+
+    init(_data?: any) {
+        if (_data) {
+            this.itemId = _data["itemId"];
+            this.title = _data["title"];
+            this.notes = _data["notes"];
+            this.priority = _data["priority"];
+        }
+    }
+
+    static fromJS(data: any): TodoItemDto {
+        data = typeof data === 'object' ? data : {};
+        let result = new TodoItemDto();
+        result.init(data);
+        return result;
+    }
+
+    toJSON(data?: any) {
+        data = typeof data === 'object' ? data : {};
+        data["itemId"] = this.itemId;
+        data["title"] = this.title;
+        data["notes"] = this.notes;
+        data["priority"] = this.priority;
+        return data;
+    }
+}
+
+export interface ITodoItemDto {
+    itemId?: string;
+    title?: string;
+    notes?: string;
+    priority?: Priority;
+}
+
+export class CreateTodoListCommand implements ICreateTodoListCommand {
+    title?: string | undefined;
+
+    constructor(data?: ICreateTodoListCommand) {
+        if (data) {
+            for (var property in data) {
+                if (data.hasOwnProperty(property))
+                    (<any>this)[property] = (<any>data)[property];
+            }
+        }
+    }
+
+    init(_data?: any) {
+        if (_data) {
+            this.title = _data["title"];
+        }
+    }
+
+    static fromJS(data: any): CreateTodoListCommand {
+        data = typeof data === 'object' ? data : {};
+        let result = new CreateTodoListCommand();
+        result.init(data);
+        return result;
+    }
+
+    toJSON(data?: any) {
+        data = typeof data === 'object' ? data : {};
+        data["title"] = this.title;
+        return data;
+    }
+}
+
+export interface ICreateTodoListCommand {
+    title?: string | undefined;
 }
 
 export class WeatherForecast implements IWeatherForecast {
@@ -848,13 +1071,6 @@ function formatDate(d: Date) {
     return d.getFullYear() + '-' + 
         (d.getMonth() < 9 ? ('0' + (d.getMonth()+1)) : (d.getMonth()+1)) + '-' +
         (d.getDate() < 10 ? ('0' + d.getDate()) : d.getDate());
-}
-
-export interface FileResponse {
-    data: Blob;
-    status: number;
-    fileName?: string;
-    headers?: { [name: string]: any };
 }
 
 export class SwaggerException extends Error {
